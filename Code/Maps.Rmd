@@ -1,0 +1,670 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-07-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Libraries
+```{r}
+library(maps)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(extrafont)
+library(Cairo)
+library(ggrepel)
+library(ggpubr)
+library(scatterpie)
+library(tidyverse)
+library(phylotools)
+```
+
+https://www.nae.usace.army.mil/Missions/Civil-Works/River-Basins/Connecticut/
+https://deepmaps.ct.gov/maps/CTDEEP::named-waterbody-set/about 
+
+```{r}
+`%notin%` <- Negate(`%in%`)
+ct_rabies_fasta <- readRDS("C:/Users/gev25289/Desktop/rabies/rds/rabiesCT.rds")
+rabiesCTRiver <- readRDS("C:/Users/gev25289/Desktop/rabies/rds/rabiesCTRiver_ny.me.remove.rds")
+
+canada <- read_sf("C:/Users/gev25289/Desktop/rabies/Data/lpr_000b21a_e/lpr_000b21a_e.shp") 
+easterncanada <- subset(canada, grepl("N.B|Que.|Ont.", canada$PREABBR))
+
+states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
+states_data <- subset(states, grepl("york|maine|vermont|connecticut", states$ID))
+counties <- st_as_sf(maps::map("county", plot = FALSE, fill = TRUE))
+counties <- subset(counties, grepl("connecticut", counties$ID))
+
+riversUS <- read_sf("C:/Users/gev25289/Desktop/rabies/Data/USA_Rivers_and_Streams-shp/9ae73184-d43c-4ab8-940a-c8687f61952f2020328-1-r9gw71.0odx9.shp")
+
+MErivers <- subset(riversUS, grepl("ME|NH", riversUS$State))
+MErivers <- subset(MErivers, grepl("River", MErivers$Name))
+MErivers <- subset(MErivers, grepl("Saint John|Androscoggin|Kennebec|Saco|Penobscot|Aroostook", MErivers$Name))
+
+NYrivers <- subset(riversUS, grepl("NY", riversUS$State))
+NYrivers <- subset(NYrivers, grepl("Saint Lawrence|Susquehanna|Allegheny|Hudson|Delaware|Genesee|Mohawk|Raquette|Oswegatchie|Black", NYrivers$Name))
+
+CTriver <- subset(riversUS, grepl("Connecticut River", riversUS$Name))
+
+rivers <- read_sf("C:/Users/gev25289/Desktop/rabies/Data/Named_Waterbody_Set/Named_Waterbody_Set.shp")
+river_housatonic <- subset(rivers, grepl("Housatonic", rivers$STREAM)) 
+river_thames <- subset(rivers, grepl("Thames", rivers$STREAM))
+river_connecticut <- subset(rivers, grepl("Connecticut", rivers$STREAM)) #adds a little to bottom
+```
+
+```{r}
+mapuscanada <- ggplot() +
+  geom_sf(data = states, color = "gray69") +
+  geom_sf(data = states_data, fill = "white") +
+  geom_sf(data = easterncanada, color = "gray69", fill = "white") +
+  coord_sf(xlim = c(-80, -66), ylim = c(40.1, 47.5), expand = FALSE) + 
+  theme_minimal() +
+  annotate("text", x = -72.7, y = 41.5, label = "CONNECTICUT", fontface = "bold", size = 3, color = "gray30") +
+  annotate("text", x = -72.8, y = 44.1, label = "VERMONT", fontface = "bold", size = 3, color = "gray30") +
+  annotate("text", x = -75.7, y = 43, label = "NEW YORK", fontface = "bold", size = 3, color = "gray30") +
+  annotate("text", x = -69.6, y = 44.7, label = "MAINE", fontface = "bold", size = 3, color = "gray30") +
+  annotate("text", x = -72.3, y = 42.3, label = "MASSACHUSETTS", size = 2.4, color = "gray30") +
+  annotate("text", x = -71.1, y = 41.7, label = "RHODE ISLAND", size = 2.4, color = "gray30") +
+  annotate("text", x = -71.7, y = 43.5, label = "NEW HAMPSHIRE", size = 2.4, color = "gray30") +
+  annotate("text", x = -74.5, y = 40.5, label = "NEW JERSEY", size = 2.4, color = "gray30") +
+  annotate("text", x = -78, y = 41, label = "PENNSYLVANIA", size = 2.4, color = "gray30") +
+  annotate("text", x = -72, y = 46, label = "QUEBEC", size = 3, fontface = "bold", color = "gray30") +
+  annotate("text", x = -78, y = 45, label = "ONTARIO", size = 3, fontface = "bold", color = "gray30") +
+  annotate("text", x = -66.8, y = 45.5, label = "NEW BRUNSWICK", fontface = "bold", size = 3, color = "gray30") +
+  theme(
+    panel.background = element_rect(fill = "aliceblue"),  # Set the background color of the panel
+    axis.title.x = element_blank(),  # Remove x axis label
+    axis.title.y = element_blank(),  # Remove y axis label
+    axis.text.x = element_blank(),    # Optionally remove x axis text
+    axis.text.y = element_blank(),
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    panel.border = element_rect(color = "gray30", fill = NA, linewidth = 1)  # Add border around the panel
+  )
+
+mapCTriver <- ggplot() +
+  geom_sf(data = states, color = "gray69") +
+  geom_sf(data = states_data, fill = "white") +
+  geom_sf(data = easterncanada,  color = "gray69") +
+  geom_sf(data = CTriver, colour = "lightskyblue", linewidth = 0.9) +
+  geom_sf(data = river_connecticut, color = "lightskyblue", linewidth = 0.9) +
+  coord_sf(xlim = c(-80, -66), ylim = c(40.1, 47.5), expand = FALSE) + 
+  theme_minimal() +
+  annotate("text", x = -72.7, y = 41.5, label = "CONNECTICUT",fontface = "bold",  size = 3, color = "gray30") +
+  annotate("text", x = -72.8, y = 44.1, label = "VERMONT", fontface = "bold", size = 3, color = "gray30") +
+  annotate("text", x = -75.7, y = 43, label = "NEW YORK", fontface = "bold", size = 3, color = "gray30") +
+  annotate("text", x = -69.6, y = 44.7, label = "MAINE",fontface = "bold",  size = 3, color = "gray30") +
+  annotate("text", x = -72.3, y = 42.3, label = "MASSACHUSETTS",  size = 2.4, color = "gray30") +
+  annotate("text", x = -71.1, y = 41.7, label = "RHODE ISLAND",  size = 2.4, color = "gray30") +
+  annotate("text", x = -71.7, y = 43.5, label = "NEW HAMPSHIRE",  size = 2.4, color = "gray30") +
+  annotate("text", x = -74.5, y = 40.5, label = "NEW JERSEY",  size = 2.4, color = "gray30") +
+  annotate("text", x = -78, y = 41, label = "PENNSYLVANIA",  size = 2.4, color = "gray30") +
+  annotate("text", x = -72, y = 45.8, label = "QUEBEC",  size = 2.4, color = "gray30") +
+  annotate("text", x = -78, y = 45, label = "ONTARIO",  size = 2.4, color = "gray30") +
+  annotate("text", x = -66.8, y = 46, label = "NEW BRUNSWICK",  size = 2.4, color = "gray30") +
+  theme(
+    panel.background = element_rect(fill = "aliceblue"),  # Set the background color of the panel
+    axis.title.x = element_blank(),  # Remove x axis label
+    axis.title.y = element_blank(),  # Remove y axis label
+    axis.text.x = element_blank(),    # Optionally remove x axis text
+    axis.text.y = element_blank(),
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+  )
+  
+map <- ggplot() +
+  geom_sf(data = states, color = "gray69") +
+  geom_sf(data = easterncanada,  color = "gray69") +
+  geom_sf(data = counties, color = "gray69", fill = "white", linewidth = 0.6) +
+  geom_sf(data = river_housatonic, colour = "lightskyblue", linewidth = 0.7) +
+  #geom_sf(data = river_thames, colour = "lightskyblue", linewidth = 0.5) +
+  geom_sf(data = CTriver, colour = "lightskyblue", linewidth = 0.9) +
+  geom_sf(data = river_connecticut, color = "lightskyblue", linewidth = 0.9) +
+  annotate("text", x = -72.7, y = 41.7, label = "CONNECTICUT",fontface = "bold",  size = 3, color = "gray30") +
+  annotate("text", x = -71.64, y = 41.7, label = "RHODE ISLAND",  size = 3, color = "gray30") +
+  annotate("text", x = -73.66, y = 41.7, label = "NEW YORK",  size = 3, color = "gray30") +
+  annotate("text", x = -72.8, y = 42.12, label = "MASSACHUSETTS", size = 3, color = "gray30") +
+  annotate("text", x = -73.33, y = 41.8, label = "Litchfield", size = 3, color = "gray69") +
+  annotate("text", x = -73.28, y = 41.33, label = "Fairfield", size = 3, color = "gray69") +
+  annotate("text", x = -72.67, y = 41.86, label = "Hartford", size = 3, color = "gray69") +
+  annotate("text", x = -72.36, y = 41.8, label = "Tolland", size = 3, color = "gray69") +
+  annotate("text", x = -72.1, y = 41.5, label = "Windham", size = 3, color = "gray69") +
+  annotate("text", x = -71.95, y = 41.85, label = "New London", size = 3, color = "gray69") +
+  annotate("text", x = -72.5, y = 41.5, label = "Middlesex", size = 3, color = "gray69") +
+  annotate("text", x = -73, y = 41.47, label = "New Haven", size = 3, color = "gray69")  +
+  coord_sf(xlim = c(-73.8, -71.5), ylim = c(40.9, 42.2), expand = FALSE) +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "aliceblue"),  # Set the background color of the panel
+    axis.title.x = element_blank(),  # Remove x axis label
+    axis.title.y = element_blank(),  # Remove y axis label
+    axis.text.x = element_blank(),    # Optionally remove x axis text
+    axis.text.y = element_blank(),
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+  )
+
+mapuscanada
+mapCTriver
+map
+```
+
+North America map
+```{r}
+# New York = c(43.1009, -75.2327)
+# Connecticut = c(41.6753, -72.5)
+# Maine = c(44.5828, -70.22)
+# Vermont = c(43.7548, -72.6355)
+# QC = c(45.8, -72)
+# ON = c(45, -78)
+# NB = c(46, -66.8)
+
+map3 <- mapuscanada +
+  
+  #CT to ME ***
+  geom_curve(
+    aes(x = -72.5, y = 41.6753, xend = -70.22, yend = 44.5828),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  #CT to NY ***
+  geom_curve(
+    aes(x = -72.5, y = 41.6753, xend = -75.2327, yend = 43.1009),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #CT to VT ***
+  geom_curve(
+    aes(x = -72.5, y = 41.6753, xend = -72.6355, yend = 43.7548),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #ME to NB ***
+    geom_curve(
+    aes(x = -70.22, y = 44.5828, xend = -66.8, yend = 46),
+    linewidth = 1.5,
+    curvature = -0.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #NY to CT ***
+    geom_curve(
+    aes(x = -75.2327, y = 43.1009, xend = -72.5, yend = 41.6753),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #NY to VT ***
+    geom_curve(
+    aes(x = -75.2327, y = 43.1009, xend = -72.6355, yend = 43.7548),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #NY to ON **
+    geom_curve(
+    aes(x = -75.2327, y = 43.1009, xend = -78, yend = 45),
+    linewidth = 1,
+    curvature = -0.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #NY to QC **
+    geom_curve(
+    aes(x = -75.2327, y = 43.1009, xend = -72, yend = 45.8),
+    linewidth = 1,
+    curvature = -0.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #VT to QC ***
+    geom_curve(
+    aes(x = -72.6355, y = 43.7548, xend = -72, yend = 45.8),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #QC to VT ***
+    geom_curve(
+    aes(x = -72, y = 45.8, xend = -72.6355, yend = 43.7548),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) 
+  
+
+legend_data <- data.frame(
+  id = factor(c("Strong support", "Decisive support")),
+  x = c(NA, NA),  # Dummy values
+  y = c(NA, NA),  # Dummy values
+  size = c(1.5, 0.5)  # Line widths
+)
+
+ratesmap3 <- map3 + geom_segment(data = legend_data, aes(x = 0, xend = 1, y = 1, yend = 1, size = id), color = "black") +
+  scale_size_manual(values = c(1.5, 0.5), name = "Bayes Factor (BF)") +
+  theme(
+    legend.position = c(0.97, 0.27),      # Adjust the position inside the plot area (x, y) range from 0 to 1
+    legend.justification = c(1, 1),     # Anchor the legend to the bottom-right corner
+    legend.key.size = unit(0.5, "cm"),  # Size of the legend keys
+    legend.text = element_text(size = 8), # Text size in the legend
+    legend.title = element_text(size = 10) # Title text size
+  )
+  # theme(
+  #   legend.key.size = unit(0.5, "cm"),    # Adjust the size of the legend keys (line or box)
+  #   legend.text = element_text(size = 8), # Adjust the text size in the legend
+  #   legend.title = element_text(size = 10) # Adjust the legend title size
+  #)
+
+y<-plot_grid(z, ratesmap3, labels = c("A", "B"), rel_widths = c(1, 1.5))
+
+ggsave(y, filename = "C:/Users/gev25289/Desktop/rabies/northamerica_ratesmap_combined.pdf", device = cairo_pdf, width=16, height=8)
+```
+
+River map
+```{r}
+# NewYork = c(43.1009, -75.2327)
+# CT_West = c(41.6753, -73.0686)
+# CT_East = c(41.6753, -72.2478)
+# Maine = c(44.5828, -70.22)
+# Vermont = c(43.7548, -72.6355)
+
+map2 <- mapCTriver + 
+  
+  #New York to Connecticut West ***
+  geom_curve(
+    aes(x = -75.2327, y = 43.1009, xend = -73.0686, yend = 41.6753),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #New York to Vermont ***
+  geom_curve(
+    aes(x = -75.2327, y = 43.1009, xend = -72.6355, yend = 43.7548),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #New York to Connecticut East **
+  geom_curve(
+    aes(x = -75.2327, y = 43.1009, xend = -72.2478, yend = 41.6753),
+    linewidth = 1,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #Vermont to New York ***
+  geom_curve(
+    aes(x = -72.6355, y = 43.7548, xend = -75.2327, yend = 43.1009),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #Connecticut East to Connecticut West ***
+  geom_curve(
+    aes(x = -72.2478, y = 41.6753, xend = -73.0686, yend = 41.6753),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #Connecticut East to Vermont ***
+  geom_curve(
+    aes(x = -72.2478, y = 41.6753, xend = -72.6355, yend = 43.7548),
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #Connecticut East to Maine **
+  geom_curve(
+    aes(x = -72.2478, y = 41.6753, xend = -70.22, yend = 44.5828),
+    linewidth = 1,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #Maine to Vermont *
+  geom_curve(
+    aes(x = -70.22, y = 44.5828, xend = -72.6355, yend = 43.7548),
+    linewidth = 0.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) 
+
+legend_data <- data.frame(
+  id = factor(c("Substantial", "Strong support", "Decisive support")),
+  x = c(NA, NA, NA),  # Dummy values
+  y = c(NA, NA, NA),  # Dummy values
+  z = c(NA, NA, NA), # Dummy values
+  size = c(1.5, 1.0, 0.5)  # Line widths
+)
+
+ratesmap <- map2 + geom_segment(data = legend_data, aes(x = 0, xend = 1, y = 1, yend = 1, size = id), color = "black") +
+  scale_size_manual(values = c(1.5, 1.0, 0.5), name = "Bayes Factor (BF)") +
+  theme(
+    legend.position = c(0.95, 0.25),      # Adjust the position inside the plot area (x, y) range from 0 to 1
+    legend.justification = c(1, 1),     # Anchor the legend to the bottom-right corner
+    legend.key.size = unit(0.5, "cm"),  # Size of the legend keys
+    legend.text = element_text(size = 10), # Text size in the legend
+    legend.title = element_text(size = 12) # Title text size
+  )
+
+ggsave(ratesmap, filename = "C:/Users/gev25289/Desktop/rabies/Fasta/river/buffer/addresssamplebias/figures/ratesmap.pdf", device = cairo_pdf, width=14, height=8)
+```
+
+Connecticut Map
+```{r}
+# NewHaven = c(-72.929916, 41.310726)
+# Fairfield = c(-73.271111, 41.146496)
+# Litchfield = c(41.752625, -73.205460)
+# Hartford = c(41.763710, -72.685097)
+# Middlesex = c(41.4699, -72.4732)
+# Tolland = c(41.8419, -72.3785)
+# Windham = c(41.5, -72.0)
+# NewLondon = c(41.8, -71.9)
+
+map1 <- map + 
+  #Fairfield to New Haven
+  geom_curve(
+  aes(x = -73.271111, y = 41.3, xend = -72.929916, yend = 41.4),
+  arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #New Haven to Litchfield S2
+  geom_curve(
+  aes(x = -72.929916, y = 41.4, xend = -73.205460, yend = 41.752625), 
+  arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #New Haven to Hartford S2
+  geom_curve(
+    aes(x = -72.929916, y = 41.4, xend = -72.71, yend = 41.763710), 
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #New Haven to Middlesex S2
+  geom_curve(
+    aes(x = -72.929916, y = 41.4, xend = -72.6, yend = 41.4699), 
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+
+  #Tolland to New Haven
+  geom_curve(
+    aes(x = -72.3785, y = 41.8419, xend = -72.929916, yend = 41.4), 
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+
+  #Tolland to Hartford S3
+  geom_curve(
+    aes(x = -72.3785, y = 41.8419, xend = -72.55, yend = 41.763710), 
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+
+  #Tolland to Middlesex S3
+  geom_curve(
+    aes(x = -72.3785, y = 41.8419, xend = -72.4, yend = 41.4699), 
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+
+  #Tolland to Windham
+  geom_curve(
+    aes(x = -72.3785, y = 41.8419, xend = -72.0, yend = 41.5), 
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #New London to Hartford S2
+  geom_curve(
+    aes(x = -71.9, y = 41.8, xend = -72.71, yend = 41.763710), 
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+
+  #Windham to Tolland
+  geom_curve(
+    aes(x = -72.0, y = 41.5, xend = -72.3785, yend = 41.8419), 
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) +
+  
+  #Windham to New London
+  geom_curve(
+    aes(x = -72.0, y = 41.5, xend = -71.9, yend = 41.8), 
+    linewidth = 1.5,
+    arrow = arrow(length = unit(0.03, "npc"), type="closed", angle=15)
+  ) 
+
+legend_data <- data.frame(
+  id = factor(c("Strong support", "Decisive support")),
+  x = c(NA, NA),  # Dummy values
+  y = c(NA, NA),  # Dummy values
+  size = c(1.5, 0.5)  # Line widths
+)
+
+ratesmap <- map1 + geom_segment(data = legend_data, aes(x = 0, xend = 1, y = 1, yend = 1, size = id), color = "black") +
+  scale_size_manual(values = c(1.5, 0.5), name = "Bayes Factor (BF)") +
+  theme(
+    legend.position = c(0.97, 0.27),      # Adjust the position inside the plot area (x, y) range from 0 to 1
+    legend.justification = c(1, 1),     # Anchor the legend to the bottom-right corner
+    legend.key.size = unit(0.5, "cm"),  # Size of the legend keys
+    legend.text = element_text(size = 8), # Text size in the legend
+    legend.title = element_text(size = 10) # Title text size
+  )
+  # theme(
+  #   legend.key.size = unit(0.5, "cm"),    # Adjust the size of the legend keys (line or box)
+  #   legend.text = element_text(size = 8), # Adjust the text size in the legend
+  #   legend.title = element_text(size = 10) # Adjust the legend title size
+  #)
+ggsave(ratesmap, filename = "C:/Users/gev25289/Desktop/rabies/Fasta/connecticut/ratesmap.pdf", device = cairo_pdf, width=14, height=8)
+```
+
+```{r}
+rabiesCTRiver_ny.me.remove <- rabiesCTRiver %>% filter(!is.na(latitude)) #424 have lat/long
+
+# Filter points with non-NA lat/long
+rabiesCTRiver_ny.me.remove <- rabiesCTRiver %>% filter(!is.na(latitude))
+
+# Define CRS for latitude and longitude (WGS84)
+projcrs <- "+proj=longlat +datum=WGS84 +no_defs"
+
+# Define CRS for UTM Zone based on bounding box of the river
+bbox <- st_bbox(CTriver)
+utm_zone <- floor((bbox["xmin"] + bbox["xmax"]) / 6) + 30
+proj_crs_utm <- paste0("+proj=utm +zone=", utm_zone, " +datum=WGS84 +units=m +no_defs") #unit = meters
+
+# Transform river data to UTM CRS
+CTriver_utm <- st_transform(CTriver, crs = proj_crs_utm)
+
+# Buffer the river
+buffer_distance_meters <- 150 * 1609.34  # 150 miles to meters
+river_buffer <- st_buffer(CTriver_utm, dist = buffer_distance_meters)
+
+# Combine buffer polygons and ensure validity
+river_buffer_combined <- st_union(river_buffer)
+st_is_valid(river_buffer_combined)
+
+# Transform point data to UTM CRS to match the river buffer
+df <- st_as_sf(x = rabiesCTRiver_ny.me.remove, coords = c("longitude", "latitude"), crs = projcrs) #lat long
+df_utm_transformed <- st_transform(df, crs = proj_crs_utm) #utm
+
+# Check which points are within the buffer
+points_within_buffer <- st_intersects(df_utm_transformed, river_buffer_combined, sparse = FALSE)
+points_within_buffer_indices <- which(rowSums(points_within_buffer) > 0)
+
+# Filter the points that intersect with the river buffer
+filtered_points_transformed <- df_utm_transformed[points_within_buffer_indices, ]
+
+# Transform filtered points back to latitude/longitude for plotting
+filtered_points_latlong <- st_transform(filtered_points_transformed, crs = projcrs)
+
+# Plotting
+plot(st_geometry(river_buffer_combined), col = 'lightblue', main = "Buffered River with Intersecting Points")
+plot(st_geometry(filtered_points_transformed), add = TRUE, col = 'red', pch = 19, cex = 1.5)
+
+filtered_points_latlong$Host[filtered_points_latlong$seq.name == "OR227628|USA:CT_Tolland|NA|East|2A|2018-08-15"] <- "Procyon lotor"
+filtered_points_latlong$CommonName[filtered_points_latlong$seq.name == "OR227628|USA:CT_Tolland|NA|East|2A|2018-08-15"] <- "Raccoon"
+table(filtered_points_latlong$Host)
+
+filtered_points_latlong <- filtered_points_latlong %>%
+  mutate(short = case_when(
+    short_Geo_Location %in% c("USA:CT_Litchfield", "USA:CT_Fairfield", "USA:CT_Hartford.West", "USA:CT_Middlesex.West", "USA:CT_New Haven") ~ "USA:CT_West",
+    short_Geo_Location %in% c("USA:CT_Hartford.East", "USA:CT_Middlesex.East", "USA:CT_Tolland", "USA:CT_Windham", "USA:CT_New London") ~ "USA:CT_East",
+    .default = short_Geo_Location
+  ))
+
+filtered_points_latlong$short <- ifelse(filtered_points_latlong$short == "USA", paste("USA", filtered_points_latlong$state, sep = ":"), filtered_points_latlong$short)
+
+filtered_points_latlong <- filtered_points_latlong %>%
+  mutate(HostGroup = case_when(
+    Host %in% c("Feliformia", "Felis catus", "Lynx rufus") ~ "Feliformia", #cat like carnivores
+    Host %in% c("Canidae", "Canis lupus familiaris") ~ "Canidae", #dog like carnivores
+    Host %in% c("Bos taurus", "Cervidae") ~ "Ruminants",
+    Host %in% c("Marmota monax") ~ "Rodents",
+    Host %in% c("Lontra canadensis") ~ "Mustelids",
+    Host %in% c("Mephitidae", "Mephitis mephitis") ~ "Mephitidae",
+    Host %in% c("Urocyon cinereoargenteus", "Vulpes vulpes") ~ "Foxes", #gray and red
+    Host %in% c("Procyon lotor") ~ "Raccoons"
+  ))
+
+species <- filtered_points_latlong %>%
+  group_by(HostGroup, short) %>%
+  summarize(n=n())
+
+table(filtered_points_latlong$HostGroup)
+table(filtered_points_latlong$Host)
+#Specific: cow (9), cat (10), river otter (1), lynx (2), groundhog (4), striped skunk (4), raccoon (180), grey fox (12), red fox (3) = 75% 
+```
+
+```{r}
+rabiesCTRiver_include <- rabiesCTRiver %>%
+  filter(state %notin% c("NH", "NJ", "RI")) 
+
+mapCTriver +
+  geom_sf(data = river_buffer_combined, fill = "beige", colour = "blue") +
+  geom_sf(data = CTriver, colour = "lightskyblue", linewidth = 0.9) +
+  geom_point(data = rabiesCTRiver_include, aes(longitude, latitude), color = "red") +
+  geom_sf(data = filtered_points_latlong) +
+  coord_sf(xlim = c(-80, -67), ylim = c(39, 47.5), expand = FALSE)
+ggsave(filename = "C:/Users/gev25289/Desktop/rabies/CTbuffer.pdf", device = cairo_pdf, width=14, height=8)
+
+mapCTriver +
+  geom_sf(data = river_buffer_combined, colour = "blue") +
+  geom_sf(data = CTriver, colour = "lightskyblue", linewidth = 0.9) +
+  geom_point(data = rabiesCTRiver_include, aes(longitude, latitude), color = "red") +
+  coord_sf(xlim = c(-80, -67), ylim = c(39, 47.5), expand = FALSE)
+
+mapCTriver + 
+  geom_sf(data = river_buffer_combined, colour = "blue") +
+  geom_sf(data = CTriver, colour = "lightskyblue", linewidth = 0.9) +
+  geom_sf(data = filtered_points_latlong) +
+  coord_sf(xlim = c(-80, -67), ylim = c(39, 47.5), expand = FALSE)
+```
+
+```{r}
+table(filtered_points_latlong$short) #CT = 69 (plus 1 MA, 1 RI), ME = 28, NY = 127, VT = 72
+#For pairwise, put back NJ, MA, RI, NH
+
+filtered_points_latlong <- filtered_points_latlong %>% filter(short_Geo_Location != "USA:NJ")
+filtered_points_latlong_NY <- filtered_points_latlong %>% filter(short == "USA:NY")
+
+set.seed(123456)
+filtered_points_latlong_NY <- filtered_points_latlong_NY %>% slice_sample(n=50)
+filtered_points_latlong_rmNY <- filtered_points_latlong %>% filter(short != "USA:NY")
+filtered_points_latlong_new <- rbind(filtered_points_latlong_NY, filtered_points_latlong_rmNY)
+table(filtered_points_latlong_new$short)
+filtered_points_latlong_new$seq.name <- paste(filtered_points_latlong_new$Accession, 
+                                      filtered_points_latlong_new$short,
+                                      filtered_points_latlong_new$HostGroup, 
+                                      filtered_points_latlong_new$Clade,
+                                      filtered_points_latlong_new$Collection_Date, 
+                                      sep = "|")
+dat2fasta(filtered_points_latlong_new, "C:/Users/gev25289/Desktop/rabies/Fasta/river/buffer/analysis2.fasta") #221
+```
+
+Option 1: Legend = Clades
+```{r}
+latlong_n <- ct_rabies_fasta %>% group_by(Latitude, Longitude, CommonName, Clade) %>% summarize(n=n())
+latlong_wide <- pivot_wider(latlong_n, names_from = Clade, values_from = n)
+latlong_wide[is.na(latlong_wide)] <- 0
+latlong_wide$total <- rowSums(latlong_wide[,4:12])
+
+mapClade <- map +
+  geom_scatterpie(aes(x=Longitude, y=Latitude, r=total/40),
+                  data = latlong_wide, alpha = 0.7, 
+                  cols=c("1A", "1B", "1C", "2A", "2B", "2C", "2D", "Non-clustered")) +
+                  scale_fill_manual(values = c("darkseagreen1","darkseagreen", "darkcyan", 
+                                               "plum", "violet", "mediumpurple", "mediumorchid4", "gray48")) +
+  scale_shape_manual(values = c(0, 1, 17, 15, 16, 6, 2)) +
+  geom_scatterpie_legend(size = 2.5, (1/14)*latlong_wide$total / max(latlong_wide$total), 
+                         labeller = function(x) round(x * 14 * max(latlong_wide$total)), 
+                         n = 3, x = -71.7, y = 40.99) +
+  xlab("Longitude") + ylab("Latitude") +
+  guides(fill=guide_legend(title="Clade"), font="Arial") +
+  annotate("text", x = -71.7, y = 41.11, label = "# of Sequences", size = 3, family="Arial") 
+
+mapClade
+
+ggsave(mapClade, filename = "C:/Users/gev25289/Desktop/rabies/mapClade.pdf", device = cairo_pdf, width=14, height=8)
+```
+
+Option 2: Legend = Host
+Ignore the warning that 4 rows are removed from geom_label_repel(), it's just not labeling 4 sequences with clades NA
+```{r}
+latlong_n <- ct_rabies_fasta %>% group_by(Latitude, Longitude, CommonName, Clade) %>% summarize(n=n())
+latlong_wide <- pivot_wider(latlong_n, names_from = CommonName, values_from = n)
+latlong_wide[4:11][is.na(latlong_wide[4:11])] <- 0
+latlong_wide$total <- rowSums(latlong_wide[,4:11])
+mapSpecies <- map +
+  geom_scatterpie(aes(x=Longitude, y=Latitude, r=total/40),
+                  data = latlong_wide, alpha = 0.8, cols=c("Raccoon", "Skunk", "Woodchuck", "Fox", "Cow", "Bobcat", "Deer", "Feline")) +
+  #geom_text(data = latlong_wide, check_overlap = TRUE, size = 2.5, aes(x = Longitude, y = Latitude, label = Clade), family = "Arial") + 
+  geom_label_repel(data = latlong_wide, max.overlaps = Inf, size = 2.5, aes(x = Longitude, y = Latitude, label = Clade), family = "Arial") + 
+  scale_fill_manual(values = c("palegreen3", "cornflowerblue","thistle1", "mediumpurple", "tan", "palegoldenrod", "powderblue",  "lightslategray")) +
+  scale_shape_manual(values = c(0, 1, 17, 15, 16, 6, 2)) +
+  geom_scatterpie_legend(size = 2.5, (1/14)*latlong_wide$total / max(latlong_wide$total), labeller = function(x) round(x * 14 * max(latlong_wide$total)), n = 3, x = -71.7, y = 40.99) +
+  xlab("Longitude") + ylab("Latitude") +
+  guides(fill=guide_legend(title="Host"), font="Arial") +
+  annotate("text", x = -71.7, y = 41.11, label = "# of Sequences", size = 3, family="Arial") 
+mapSpecies
+
+ggsave(mapSpecies, filename = "C:/Users/gev25289/Desktop/rabies/mapSpecies.pdf", device = cairo_pdf, width=14, height=8)
+```
+
+Quick check at labeling schemes
+```{r}
+latlong_n <- ct_rabies_fasta %>% group_by(Latitude, Longitude, Clade, Counties_CT_Housa_River) %>% summarize(n=n())
+latlong_wide <- pivot_wider(latlong_n, names_from = Clade, values_from = n)
+latlong_wide[4:12][is.na(latlong_wide[4:12])] <- 0
+latlong_wide$total <- rowSums(latlong_wide[,4:12])
+map +
+  geom_scatterpie(aes(x=Longitude, y=Latitude, r=total/40),
+                  data = latlong_wide, alpha = 0.8, cols=4:12) +
+  geom_label_repel(data = latlong_wide, max.overlaps = Inf, size = 2.5, aes(x = Longitude, y = Latitude, label = Counties_CT_Housa_River), family = "Arial") 
+
+latlong_n <- ct_rabies_fasta %>% group_by(Latitude, Longitude, Clade, Counties_CT_River) %>% summarize(n=n())
+latlong_wide <- pivot_wider(latlong_n, names_from = Clade, values_from = n)
+latlong_wide[4:12][is.na(latlong_wide[4:12])] <- 0
+latlong_wide$total <- rowSums(latlong_wide[,4:12])
+map +
+  geom_scatterpie(aes(x=Longitude, y=Latitude, r=total/40),
+                  data = latlong_wide, alpha = 0.8, cols=4:12) +
+  geom_label_repel(data = latlong_wide, max.overlaps = Inf, size = 2.5, aes(x = Longitude, y = Latitude, label = Counties_CT_River), family = "Arial") 
+
+latlong_n <- ct_rabies_fasta %>% group_by(Latitude, Longitude, Clade, CT_River) %>% summarize(n=n())
+latlong_wide <- pivot_wider(latlong_n, names_from = Clade, values_from = n)
+latlong_wide[4:12][is.na(latlong_wide[4:12])] <- 0
+latlong_wide$total <- rowSums(latlong_wide[,4:12])
+map +
+  geom_scatterpie(aes(x=Longitude, y=Latitude, r=total/40),
+                  data = latlong_wide, alpha = 0.8, cols=4:12) +
+  geom_label_repel(data = latlong_wide, max.overlaps = Inf, size = 2.5, aes(x = Longitude, y = Latitude, label = CT_River), family = "Arial") 
+
+latlong_n <- ct_rabies_fasta %>% group_by(Latitude, Longitude, Clade, CT_Housa_River) %>% summarize(n=n())
+latlong_wide <- pivot_wider(latlong_n, names_from = Clade, values_from = n)
+latlong_wide[4:12][is.na(latlong_wide[4:12])] <- 0
+latlong_wide$total <- rowSums(latlong_wide[,4:12])
+map +
+  geom_scatterpie(aes(x=Longitude, y=Latitude, r=total/40),
+                  data = latlong_wide, alpha = 0.8, cols=4:12) +
+  geom_label_repel(data = latlong_wide, max.overlaps = Inf, size = 2.5, aes(x = Longitude, y = Latitude, label = CT_Housa_River), family = "Arial") 
+```
+

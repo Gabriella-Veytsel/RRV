@@ -1,0 +1,6 @@
+Location	samples
+USA:CT_East	31
+USA:CT_West	40	
+USA:ME	28
+USA:NY	50
+USA:VT	72
